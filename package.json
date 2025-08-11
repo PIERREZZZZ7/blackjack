@@ -1,0 +1,17 @@
+{
+  "name": "next-flask-blackjack",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "13.4.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "@solana/web3.js": "^1.95.3",
+    "@solana/spl-token": "^0.4.6"
+  }
+}
