@@ -12,6 +12,13 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "@solana/web3.js": "^1.95.3",
-    "@solana/spl-token": "^0.4.6"
+    "@solana/spl-token": "^0.4.6",
+    "encoding": "^0.1.13"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "@types/react": "^18.2.75",
+    "@types/react-dom": "^18.2.25",
+    "@types/node": "^20.14.12"
   }
 }
