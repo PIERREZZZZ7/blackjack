@@ -69,6 +69,7 @@ export default function Page() {
     setView(null);
     setStateToken(null);
     setCards([]);
+    setFunMode(false);
   };
 
   // Balances
