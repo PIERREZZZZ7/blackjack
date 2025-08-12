@@ -40,10 +40,12 @@ export default function Page() {
   // Wallet
   const [pubkey, setPubkey] = useState<PublicKey | null>(null);
   const [conn] = useState(() => new Connection(RPC_URL, "confirmed"));
-  const [currency, setCurrency] = useState<"SOL" | "USDC">("SOL");
+  const [currency, setCurrency] = useState<"SOL" | "USDC" | "FUN">("SOL");
   const [balSOL, setBalSOL] = useState<number | null>(null);
   const [balUSDC, setBalUSDC] = useState<number | null>(null);
   const [bet, setBet] = useState<string>("0.01");
+  const [funMode, setFunMode] = useState(false);
+
 
   // Game
   const [loading, setLoading] = useState(false);
@@ -162,23 +164,35 @@ export default function Page() {
   }, [view?.revealDealer]); // eslint-disable-line
 
   // API wiring
-  const startGame = async () => {
-    if (!pubkey) return alert("Connect wallet first.");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/python/blackjack", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start", publicKey: pubkey.toBase58(), currency, bet: Number(bet) }),
-      });
-      const data = await res.json();
-      setStateToken(data.stateToken);
-      setView(data.view);
-      await animateInitialDeal(data.view);
-    } finally {
-      setLoading(false);
+const startGame = async (mode: "wallet" | "fun" = "wallet") => {
+  if (mode === "wallet" && !pubkey) return alert("Connect wallet first.");
+  setLoading(true);
+  try {
+    const useFun = mode === "fun";
+    if (useFun) {
+      setFunMode(true);
+      setCurrency("FUN");
     }
-  };
+
+    const res = await fetch("/api/python/blackjack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "start",
+        publicKey: useFun ? "FUN_PLAYER" : pubkey!.toBase58(),
+        currency: useFun ? "FUN" : currency,
+        bet: Number(bet),
+      }),
+    });
+    const data = await res.json();
+    setStateToken(data.stateToken);
+    setView(data.view);
+    await animateInitialDeal(data.view);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const sendAction = async (action: "hit" | "stand" | "double") => {
     if (!stateToken) return;
@@ -263,7 +277,12 @@ export default function Page() {
                 <option value="USDC">USDC</option>
               </select>
               <input className="input" value={bet} onChange={(e)=>setBet(e.target.value)} />
-              <button className="btn" disabled={!canPlay || loading} onClick={startGame}>Deal</button>
+              <button className="btn" disabled={!canPlay || loading} onClick={() => { setFunMode(false); startGame("wallet"); }}>
+                Deal
+              </button>
+              <button className="btn" disabled={loading} onClick={() => startGame("fun")}> 
+                Fun Play
+              </button>
             </div>
           </div>
         </div>
