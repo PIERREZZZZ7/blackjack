@@ -46,7 +46,6 @@ export default function Page() {
   const [bet, setBet] = useState<string>("0.01");
   const [funMode, setFunMode] = useState(false);
 
-
   // Game
   const [loading, setLoading] = useState(false);
   const [stateToken, setStateToken] = useState<string | null>(null);
@@ -106,46 +105,34 @@ export default function Page() {
   // Deal animation: push card with deck position, then on next frame toggle inPlace so it slides to target
   const pushAnimatedCard = (text: string, owner: Owner, index: number, faceDown = false) => {
     const id = `${owner}-${index}-${text}-${Math.random().toString(36).slice(2,8)}`;
-    const target = computeTarget(owner, index);
-    const from = { top: 200, left: 420 }; // deck stack position
-
-    setCards((prev) => [
-      ...prev,
-      { id, text, owner, index, faceDown, inPlace: false }
-    ]);
-
-    // After the card is mounted, toggle inPlace
+    setCards((prev) => [...prev, { id, text, owner, index, faceDown, inPlace: false }]);
     requestAnimationFrame(() => {
-      setCards((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, inPlace: true } : c
-        )
-      );
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, inPlace: true } : c)));
     });
-
-    return { id, from, target };
   };
 
   // Build animation from a new view (initial deal)
   const animateInitialDeal = async (newView: GameView) => {
-    // clear
     setCards([]);
-
     // sequence: P1, D1, P2, D2
     const seq: {owner: Owner; text: string; faceDown?: boolean}[] = [];
     if (newView.player[0]) seq.push({ owner: "player", text: newView.player[0] });
     if (newView.dealer[0]) seq.push({ owner: "dealer", text: newView.dealer[0] });
     if (newView.player[1]) seq.push({ owner: "player", text: newView.player[1] });
     if (newView.dealer[1]) {
-      // if not revealed, add a face-down
       const faceDown = !newView.revealDealer && newView.status === "playing";
       seq.push({ owner: "dealer", text: newView.dealer[1], faceDown });
     }
 
     for (let i = 0; i < seq.length; i++) {
       const s = seq[i];
-      pushAnimatedCard(s.text, s.owner, s.owner === "player" ? (i > 1 ? 1 : 0) : (i > 2 ? 1 : 0), !!s.faceDown);
-      await new Promise((r) => setTimeout(r, 200)); // slight stagger
+      pushAnimatedCard(
+        s.text,
+        s.owner,
+        s.owner === "player" ? (i > 1 ? 1 : 0) : (i > 2 ? 1 : 0),
+        !!s.faceDown
+      );
+      await new Promise((r) => setTimeout(r, 200)); // stagger
     }
   };
 
@@ -165,35 +152,34 @@ export default function Page() {
   }, [view?.revealDealer]); // eslint-disable-line
 
   // API wiring
-const startGame = async (mode: "wallet" | "fun" = "wallet") => {
-  if (mode === "wallet" && !pubkey) return alert("Connect wallet first.");
-  setLoading(true);
-  try {
-    const useFun = mode === "fun";
-    if (useFun) {
-      setFunMode(true);
-      setCurrency("FUN");
+  const startGame = async (mode: "wallet" | "fun" = "wallet") => {
+    if (mode === "wallet" && !pubkey) return alert("Connect wallet first.");
+    setLoading(true);
+    try {
+      const useFun = mode === "fun";
+      if (useFun) {
+        setFunMode(true);
+        setCurrency("FUN");
+      }
+
+      const res = await fetch("/api/python/blackjack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start",
+          publicKey: useFun ? "FUN_PLAYER" : pubkey!.toBase58(),
+          currency: useFun ? "FUN" : currency,
+          bet: Number(bet),
+        }),
+      });
+      const data = await res.json();
+      setStateToken(data.stateToken);
+      setView(data.view);
+      await animateInitialDeal(data.view);
+    } finally {
+      setLoading(false);
     }
-
-    const res = await fetch("/api/python/blackjack", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "start",
-        publicKey: useFun ? "FUN_PLAYER" : pubkey!.toBase58(),
-        currency: useFun ? "FUN" : currency,
-        bet: Number(bet),
-      }),
-    });
-    const data = await res.json();
-    setStateToken(data.stateToken);
-    setView(data.view);
-    await animateInitialDeal(data.view);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const sendAction = async (action: "hit" | "stand" | "double") => {
     if (!stateToken) return;
@@ -211,12 +197,10 @@ const startGame = async (mode: "wallet" | "fun" = "wallet") => {
 
       // Infer what changed to animate new card(s)
       if (prev) {
-        // Player hit?
         if (data.view.player.length > prev.player.length) {
           const text = data.view.player[data.view.player.length - 1];
           await animateHit("player", text, data.view.player.length - 1);
         }
-        // Dealer drew after stand/double?
         if (data.view.dealer.length > prev.dealer.length) {
           const text = data.view.dealer[data.view.dealer.length - 1];
           await animateHit("dealer", text, data.view.dealer.length - 1);
@@ -226,8 +210,6 @@ const startGame = async (mode: "wallet" | "fun" = "wallet") => {
       setLoading(false);
     }
   };
-
-  const canPlay = !!pubkey;
 
   // Simple computed labels
   const statusText = useMemo(() => {
@@ -265,23 +247,46 @@ const startGame = async (mode: "wallet" | "fun" = "wallet") => {
         <div className="grid">
           <div className="card">
             <div className="h2">Balances</div>
-            <div className="row">
-              <div className="badge">SOL: {balSOL == null ? "…" : balSOL.toFixed(4)}</div>
-              <div className="badge">USDC: {balUSDC == null ? "…" : balUSDC.toFixed(2)}</div>
-            </div>
+            {funMode ? (
+              <div className="badge">Fun Mode (no wallet required)</div>
+            ) : (
+              <div className="row">
+                <div className="badge">SOL: {balSOL == null ? "…" : balSOL.toFixed(4)}</div>
+                <div className="badge">USDC: {balUSDC == null ? "…" : balUSDC.toFixed(2)}</div>
+              </div>
+            )}
           </div>
           <div className="card">
             <div className="h2">Bet</div>
             <div className="row">
-              <select className="btn" value={currency} onChange={(e) => setCurrency(e.target.value as any)}>
+              <select
+                className="btn"
+                value={funMode ? "FUN" : currency}
+                onChange={(e) => setCurrency(e.target.value as any)}
+                disabled={funMode}
+              >
+                {funMode && <option value="FUN">FUN</option>}
                 <option value="SOL">SOL</option>
                 <option value="USDC">USDC</option>
               </select>
+
               <input className="input" value={bet} onChange={(e)=>setBet(e.target.value)} />
-              <button className="btn" disabled={!canPlay || loading} onClick={() => { setFunMode(false); startGame("wallet"); }}>
+
+              {/* Wallet play */}
+              <button
+                className="btn"
+                disabled={!pubkey || loading}
+                onClick={() => { setFunMode(false); startGame("wallet"); }}
+              >
                 Deal
               </button>
-              <button className="btn" disabled={loading} onClick={() => startGame("fun")}> 
+
+              {/* Fun play */}
+              <button
+                className="btn"
+                disabled={loading}
+                onClick={() => startGame("fun")}
+              >
                 Fun Play
               </button>
             </div>
@@ -319,7 +324,7 @@ const startGame = async (mode: "wallet" | "fun" = "wallet") => {
           <button className="btn" disabled={!view || loading || view.status!=="playing"} onClick={()=>sendAction("stand")}>Stand</button>
           <button className="btn" disabled={!view || loading || !view?.canDouble} onClick={()=>sendAction("double")}>Double</button>
           {view && <span className="badge">Status: {statusText}</span>}
-          {view && <span className="badge">Bet: {view.bet} {currency}</span>}
+          {view && <span className="badge">Bet: {view.bet} {funMode ? "FUN" : currency}</span>}
         </div>
       </div>
     </div>
